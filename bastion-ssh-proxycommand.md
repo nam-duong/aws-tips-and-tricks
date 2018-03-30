@@ -4,6 +4,10 @@ ProxyCommand is used to allow SSH to private linux instance without storing ssh 
 
 https://en.wikibooks.org/wiki/OpenSSH/Cookbook/Proxies_and_Jump_Hosts#ProxyCommand_with_Netcat
 
+# Benefit
+1. Store SSH key in local machine, not Bastion.
+2. More secure than ssh-agent forwarding (Opinion https://heipei.github.io/2015/02/26/SSH-Agent-Forwarding-considered-harmful/)
+3. Cool!
 
 # Step By Step
 
