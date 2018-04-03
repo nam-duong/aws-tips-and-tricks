@@ -10,7 +10,7 @@
     * A tomcat 9 server behind the load balancer
     * Expose stack behind AWS ALB https - 443
 
-## Step by Step
+## Deploy Rancher Cluster: Step by Step 
 
 1. Create VPC with 3 subnets: 2 Public (2 different AZ) and 1 Private (because we want to use ALB and it requires to pick at least 2 az).
 2. Create following Security Group:
@@ -64,7 +64,7 @@
 7. Create the ALB:
 
 * Step 1: Configure Load Balancer
-    * Name: rancher-admin-alb
+    * Name: rancher-master-alb
     * Scheme: internet facing
     * Listener: http - port 80
     * AZ: choose 2 public subnets in your created VPC
@@ -103,3 +103,83 @@ Wait for the command to finish.
 11. SSH to rancher worker instance. Run the copy command. Wait for the command to finish.
 
 12. Check The Infrastructure > Host. A new Host should appear. 
+
+13. Done deploying Rancher Cluster.
+
+
+## Deploy Tomcat9 behind a Rancher Load Balancer using rancher-compose: Step-by-step
+
+1. Create a Self Signed Certificate then import to AWS Certificate Manager.
+
+2. Create rancher worker ALB:
+
+* Step 1: Configure Load Balancer
+    * Name: rancher-worker-alb
+    * Scheme: internet facing
+    * Listener: https - port 443
+    * AZ: choose 2 public subnets in your created VPC
+* Step 2: Configure Security Settings:
+    * Choose the Certificate in #1
+* Step 3: Configure Security Groups
+    * Select existing Security Group: rancher-worker-alb-sg
+    * If not existed: create new one to allow HTTPS/443
+* Step 4: Configure Routing
+    * Name: rancher-worker-tg
+    * Protocol: http
+    * Port: 8080
+    * Target Type: instance
+    * Health Check:  HTTP
+    * Path: /ping
+* Step 5: Register Targets
+    * Add rancher worker instance - port 8080
+
+3. Go to Rancher Admin UI > Stacks > Add Stack.
+
+* Name: tomcat9-with-load-balancer
+* docker-compose.yml
+
+```
+version: '2'
+services:
+  web:
+    image: tomcat:9-jre8-alpine
+  lb:
+    image: rancher/lb-service-haproxy
+    ports:
+    - 8080:8080/tcp
+    labels:
+      io.rancher.container.agent.role: environment
+      io.rancher.container.create_agent: 'true'
+
+```
+
+* rancher-compose.yml
+
+```
+version: '2'
+services:
+  web:
+    drain_timeout_ms: 10000
+    scale: 1
+    start_on_create: true
+  lb:
+    scale: 1
+    start_on_create: true
+    lb_config:
+      certs: []
+      port_rules:
+      - priority: 1
+        protocol: http
+        service: web
+        source_port: 8080
+        target_port: 8080
+    health_check:
+      healthy_threshold: 2
+      response_timeout: 2000
+      port: 42
+      unhealthy_threshold: 3
+      interval: 2000
+      strategy: recreate
+```
+
+Wait for stack to be created. When stack is up - Green. Go to rancher-worker alb dns. It should show the tomcat default page.
